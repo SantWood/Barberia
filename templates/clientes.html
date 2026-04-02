@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BarberApp — Clientes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/main.css"/>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand">✦ BarberApp</div>
+  <nav>
+    <a href="/" class="nav-item">⌂ Dashboard</a>
+    <a href="/citas" class="nav-item">◷ Citas</a>
+    <a href="/clientes" class="nav-item active">◉ Clientes</a>
+    <a href="/barberos" class="nav-item">✂ Barberos</a>
+  </nav>
+  <div class="sidebar-footer">v1.0 · 2025</div>
+</aside>
+<main class="main">
+  <header class="topbar">
+    <h1 class="page-title">Clientes</h1>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <input id="buscar" type="text" placeholder="Buscar por nombre o teléfono..." class="form-control" style="width:280px;" oninput="cargar()"/>
+      <button class="btn btn-primary" onclick="abrirModal()">+ Nuevo cliente</button>
+    </div>
+  </header>
+  <section class="content">
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Nombre</th><th>Teléfono</th><th>Email</th><th>Notas</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="tabla-body"><tr><td colspan="5" class="empty">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Modal -->
+<div id="overlay" class="overlay hidden" onclick="cerrarModal()"></div>
+<div id="modal" class="modal hidden">
+  <div class="modal-header">
+    <h3 id="modal-titulo">Nuevo cliente</h3>
+    <button class="modal-close" onclick="cerrarModal()">✕</button>
+  </div>
+  <div class="form-group"><label>Nombre *</label><input id="f-nombre" class="form-control" placeholder="Nombre completo"/></div>
+  <div class="form-group"><label>Teléfono *</label><input id="f-tel" class="form-control" placeholder="Ej: 3001234567"/></div>
+  <div class="form-group"><label>Email</label><input id="f-email" class="form-control" placeholder="correo@ejemplo.com"/></div>
+  <div class="form-group"><label>Notas</label><textarea id="f-notas" class="form-control" rows="3" placeholder="Alergias, preferencias..."></textarea></div>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+    <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardar()">Guardar</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script>
+let editId = null;
+
+async function cargar() {
+  const q = document.getElementById("buscar").value;
+  const data = await fetch(`/api/clientes/?q=${encodeURIComponent(q)}`).then(r=>r.json());
+  document.getElementById("tabla-body").innerHTML = data.length===0
+    ? `<tr><td colspan="5" class="empty">No se encontraron clientes</td></tr>`
+    : data.map(c=>`<tr>
+        <td>${c.nombre}</td>
+        <td>${c.telefono}</td>
+        <td>${c.email||"—"}</td>
+        <td>${c.notas||"—"}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick='editar(${JSON.stringify(c)})'>✎ Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="eliminar('${c._id}')">✕</button>
+        </td>
+      </tr>`).join("");
+}
+
+function abrirModal(titulo="Nuevo cliente") {
+  editId = null;
+  document.getElementById("modal-titulo").textContent = titulo;
+  ["f-nombre","f-tel","f-email","f-notas"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("overlay").classList.remove("hidden");
+  document.getElementById("modal").classList.remove("hidden");
+}
+
+function editar(c) {
+  editId = c._id;
+  document.getElementById("modal-titulo").textContent = "Editar cliente";
+  document.getElementById("f-nombre").value = c.nombre;
+  document.getElementById("f-tel").value = c.telefono;
+  document.getElementById("f-email").value = c.email||"";
+  document.getElementById("f-notas").value = c.notas||"";
+  document.getElementById("overlay").classList.remove("hidden");
+  document.getElementById("modal").classList.remove("hidden");
+}
+
+function cerrarModal() {
+  document.getElementById("overlay").classList.add("hidden");
+  document.getElementById("modal").classList.add("hidden");
+}
+
+async function guardar() {
+  const body = {
+    nombre:   document.getElementById("f-nombre").value.trim(),
+    telefono: document.getElementById("f-tel").value.trim(),
+    email:    document.getElementById("f-email").value.trim(),
+    notas:    document.getElementById("f-notas").value.trim(),
+  };
+  if (!body.nombre || !body.telefono) { toast("Nombre y teléfono son obligatorios","error"); return; }
+  const url    = editId ? `/api/clientes/${editId}` : "/api/clientes/";
+  const method = editId ? "PUT" : "POST";
+  const res = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) { toast(data.error,"error"); return; }
+  toast(editId?"Cliente actualizado":"Cliente registrado","ok");
+  cerrarModal();
+  cargar();
+}
+
+async function eliminar(id) {
+  if (!confirm("¿Eliminar este cliente?")) return;
+  await fetch(`/api/clientes/${id}`, {method:"DELETE"});
+  toast("Cliente eliminado","ok");
+  cargar();
+}
+
+function toast(msg, tipo) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = `toast ${tipo==="error"?"toast-error":"toast-ok"}`;
+  setTimeout(()=>t.className="toast hidden", 3000);
+}
+
+cargar();
+</script>
+</body>
+</html>

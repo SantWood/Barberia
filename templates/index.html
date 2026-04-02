@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BarberApp — Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/main.css"/>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand">✦ BarberApp</div>
+  <nav>
+    <a href="/" class="nav-item active">⌂ Dashboard</a>
+    <a href="/citas" class="nav-item">◷ Citas</a>
+    <a href="/clientes" class="nav-item">◉ Clientes</a>
+    <a href="/barberos" class="nav-item">✂ Barberos</a>
+  </nav>
+  <div class="sidebar-footer">v1.0 · 2025</div>
+</aside>
+<main class="main">
+  <header class="topbar">
+    <h1 class="page-title">Dashboard</h1>
+    <span id="fecha-hoy" style="color:#8a8274;font-size:14px;"></span>
+  </header>
+  <section class="content">
+    <div id="stats" class="grid-4" style="margin-bottom:28px;"></div>
+    <div class="card">
+      <h2 style="font-size:17px;color:#c9a84c;margin-bottom:16px;">Citas de hoy</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Cliente</th><th>Barbero</th><th>Servicio</th><th>Hora</th><th>Estado</th>
+          </tr></thead>
+          <tbody id="citas-body"><tr><td colspan="5" class="empty">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+const BADGES = {
+  pendiente:  ["#2c2500","#f0c040"],
+  confirmada: ["#0d2e1f","#4caf82"],
+  completada: ["#1a1a1a","#888888"],
+  cancelada:  ["#2c0f0e","#e07070"],
+};
+async function init() {
+  const hoy = new Date().toISOString().split("T")[0];
+  document.getElementById("fecha-hoy").textContent = new Date().toLocaleDateString("es-CO",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  const [citas, clientes, barberos] = await Promise.all([
+    fetch(`/api/citas/?fecha=${hoy}`).then(r=>r.json()),
+    fetch("/api/clientes/").then(r=>r.json()),
+    fetch("/api/barberos/").then(r=>r.json()),
+  ]);
+  const confirmadas = citas.filter(c=>c.estado==="confirmada").length;
+  document.getElementById("stats").innerHTML = [
+    {v:citas.length,      l:"Citas hoy",       i:"◷"},
+    {v:confirmadas,       l:"Confirmadas",      i:"✓"},
+    {v:clientes.length,   l:"Clientes",         i:"◉"},
+    {v:barberos.length,   l:"Barberos activos", i:"✂"},
+  ].map(s=>`
+    <div class="stat-card">
+      <div style="font-size:28px;color:#c9a84c;margin-bottom:4px;">${s.i}</div>
+      <div class="stat-value">${s.v}</div>
+      <div class="stat-label">${s.l}</div>
+    </div>`).join("");
+  document.getElementById("citas-body").innerHTML = citas.length===0
+    ? `<tr><td colspan="5" class="empty">No hay citas para hoy</td></tr>`
+    : citas.map(c=>{
+        const [bg,col] = BADGES[c.estado]||BADGES.pendiente;
+        return `<tr>
+          <td>${c.cliente?.nombre||"—"}</td>
+          <td>${c.barbero?.nombre||"—"}</td>
+          <td>${c.servicio?.nombre||"—"}</td>
+          <td>${c.hora}</td>
+          <td><span class="badge" style="background:${bg};color:${col}">${c.estado}</span></td>
+        </tr>`;
+      }).join("");
+}
+init();
+</script>
+</body>
+</html>

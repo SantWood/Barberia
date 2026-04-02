@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BarberApp — Citas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/main.css"/>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand">✦ BarberApp</div>
+  <nav>
+    <a href="/" class="nav-item">⌂ Dashboard</a>
+    <a href="/citas" class="nav-item active">◷ Citas</a>
+    <a href="/clientes" class="nav-item">◉ Clientes</a>
+    <a href="/barberos" class="nav-item">✂ Barberos</a>
+  </nav>
+  <div class="sidebar-footer">v1.0 · 2025</div>
+</aside>
+<main class="main">
+  <header class="topbar">
+    <h1 class="page-title">Citas</h1>
+    <button class="btn btn-primary" onclick="abrirModal()">+ Nueva cita</button>
+  </header>
+  <section class="content">
+    <!-- Filtros -->
+    <div class="card card-sm" style="display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
+      <div><label style="font-size:12px;color:#8a8274;">Fecha</label><br/>
+        <input type="date" id="f-filtro-fecha" class="form-control" style="width:160px;" onchange="cargar()"/></div>
+      <div><label style="font-size:12px;color:#8a8274;">Barbero</label><br/>
+        <select id="f-filtro-barbero" class="form-control" style="width:160px;" onchange="cargar()">
+          <option value="">Todos</option>
+        </select></div>
+      <div><label style="font-size:12px;color:#8a8274;">Estado</label><br/>
+        <select id="f-filtro-estado" class="form-control" style="width:140px;" onchange="cargar()">
+          <option value="">Todos</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="confirmada">Confirmada</option>
+          <option value="completada">Completada</option>
+          <option value="cancelada">Cancelada</option>
+        </select></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:16px;" onclick="limpiarFiltros()">Limpiar</button>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Cliente</th><th>Barbero</th><th>Servicio</th><th>Fecha</th><th>Hora</th><th>Estado</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="tabla-body"><tr><td colspan="7" class="empty">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Modal nueva cita -->
+<div id="overlay" class="overlay hidden" onclick="cerrarModal()"></div>
+<div id="modal" class="modal hidden">
+  <div class="modal-header">
+    <h3>Nueva cita</h3>
+    <button class="modal-close" onclick="cerrarModal()">✕</button>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Cliente *</label>
+      <select id="m-cliente" class="form-control"><option value="">Seleccionar...</option></select></div>
+    <div class="form-group"><label>Barbero *</label>
+      <select id="m-barbero" class="form-control"><option value="">Seleccionar...</option></select></div>
+  </div>
+  <div class="form-group"><label>Servicio *</label>
+    <select id="m-servicio" class="form-control"><option value="">Seleccionar...</option></select></div>
+  <div class="form-row">
+    <div class="form-group"><label>Fecha *</label>
+      <input type="date" id="m-fecha" class="form-control"/></div>
+    <div class="form-group"><label>Hora *</label>
+      <input type="time" id="m-hora" class="form-control"/></div>
+  </div>
+  <div class="form-group"><label>Notas</label>
+    <textarea id="m-notas" class="form-control" rows="2" placeholder="Observaciones opcionales..."></textarea></div>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+    <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardar()">Guardar cita</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script>
+const BADGES = {
+  pendiente:  ["#2c2500","#f0c040"],
+  confirmada: ["#0d2e1f","#4caf82"],
+  completada: ["#1a1a1a","#888888"],
+  cancelada:  ["#2c0f0e","#e07070"],
+};
+let servicios = [];
+
+async function init() {
+  const hoy = new Date().toISOString().split("T")[0];
+  document.getElementById("f-filtro-fecha").value = hoy;
+
+  const [barberos, svcs] = await Promise.all([
+    fetch("/api/barberos/").then(r=>r.json()),
+    fetch("/api/citas/servicios").then(r=>r.json()),
+  ]);
+  servicios = svcs;
+
+  // Filtro barbero
+  const sel = document.getElementById("f-filtro-barbero");
+  barberos.forEach(b=> sel.innerHTML += `<option value="${b._id}">${b.nombre}</option>`);
+
+  // Modal selects
+  const mb = document.getElementById("m-barbero");
+  barberos.forEach(b=> mb.innerHTML += `<option value="${b._id}">${b.nombre}</option>`);
+
+  const mc = document.getElementById("m-cliente");
+  const clientes = await fetch("/api/clientes/").then(r=>r.json());
+  clientes.forEach(c=> mc.innerHTML += `<option value="${c._id}">${c.nombre} — ${c.telefono}</option>`);
+
+  const ms = document.getElementById("m-servicio");
+  svcs.forEach(s=> ms.innerHTML += `<option value='${JSON.stringify(s)}'>${s.nombre} — $${s.precio.toLocaleString()} (${s.duracion_min} min)</option>`);
+
+  cargar();
+}
+
+async function cargar() {
+  const fecha   = document.getElementById("f-filtro-fecha").value;
+  const barbero = document.getElementById("f-filtro-barbero").value;
+  const estado  = document.getElementById("f-filtro-estado").value;
+  let url = "/api/citas/?";
+  if (fecha)   url += `fecha=${fecha}&`;
+  if (barbero) url += `barbero_id=${barbero}&`;
+  if (estado)  url += `estado=${estado}&`;
+  const data = await fetch(url).then(r=>r.json());
+  document.getElementById("tabla-body").innerHTML = data.length===0
+    ? `<tr><td colspan="7" class="empty">No hay citas con esos filtros</td></tr>`
+    : data.map(c=>{
+        const [bg,col] = BADGES[c.estado]||BADGES.pendiente;
+        return `<tr>
+          <td>${c.cliente?.nombre||"—"}</td>
+          <td>${c.barbero?.nombre||"—"}</td>
+          <td>${c.servicio?.nombre||"—"}</td>
+          <td>${c.fecha}</td>
+          <td>${c.hora}</td>
+          <td><span class="badge" style="background:${bg};color:${col}">${c.estado}</span></td>
+          <td style="display:flex;gap:6px;">
+            ${c.estado!=="completada"&&c.estado!=="cancelada"?`<button class="btn btn-ghost btn-sm" onclick="cambiarEstado('${c._id}','${c.estado}')">✎</button>`:""}
+            ${c.estado!=="cancelada"?`<button class="btn btn-danger btn-sm" onclick="cancelar('${c._id}')">✕</button>`:""}
+          </td>
+        </tr>`;
+      }).join("");
+}
+
+function limpiarFiltros() {
+  document.getElementById("f-filtro-fecha").value = "";
+  document.getElementById("f-filtro-barbero").value = "";
+  document.getElementById("f-filtro-estado").value = "";
+  cargar();
+}
+
+function abrirModal() {
+  const hoy = new Date().toISOString().split("T")[0];
+  document.getElementById("m-fecha").value = hoy;
+  document.getElementById("m-hora").value = "";
+  document.getElementById("m-notas").value = "";
+  document.getElementById("m-cliente").selectedIndex = 0;
+  document.getElementById("m-barbero").selectedIndex = 0;
+  document.getElementById("m-servicio").selectedIndex = 0;
+  document.getElementById("overlay").classList.remove("hidden");
+  document.getElementById("modal").classList.remove("hidden");
+}
+
+function cerrarModal() {
+  document.getElementById("overlay").classList.add("hidden");
+  document.getElementById("modal").classList.add("hidden");
+}
+
+async function guardar() {
+  const clienteId = document.getElementById("m-cliente").value;
+  const barberoId = document.getElementById("m-barbero").value;
+  const servicioStr = document.getElementById("m-servicio").value;
+  const fecha = document.getElementById("m-fecha").value;
+  const hora  = document.getElementById("m-hora").value;
+  if (!clienteId||!barberoId||!servicioStr||!fecha||!hora) {
+    toast("Completa todos los campos obligatorios","error"); return;
+  }
+  const servicio = JSON.parse(servicioStr);
+  const res = await fetch("/api/citas/", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({cliente_id:clienteId, barbero_id:barberoId, servicio, fecha, hora, notas:document.getElementById("m-notas").value})
+  });
+  const data = await res.json();
+  if (!res.ok) { toast(data.error,"error"); return; }
+  toast("Cita agendada exitosamente","ok");
+  cerrarModal();
+  cargar();
+}
+
+async function cambiarEstado(id, actual) {
+  const OPCIONES = {pendiente:["confirmada","cancelada"], confirmada:["completada","cancelada"]};
+  const opciones = OPCIONES[actual]||[];
+  if (!opciones.length) return;
+  const nuevo = prompt(`Cambiar estado a:\n${opciones.join(" / ")}`);
+  if (!opciones.includes(nuevo)) return;
+  await fetch(`/api/citas/${id}/estado`, {
+    method:"PATCH",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({estado:nuevo})
+  });
+  toast(`Cita marcada como ${nuevo}`,"ok");
+  cargar();
+}
+
+async function cancelar(id) {
+  if (!confirm("¿Cancelar esta cita?")) return;
+  await fetch(`/api/citas/${id}`, {method:"DELETE"});
+  toast("Cita cancelada","ok");
+  cargar();
+}
+
+function toast(msg, tipo) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = `toast ${tipo==="error"?"toast-error":"toast-ok"}`;
+  setTimeout(()=>t.className="toast hidden", 3000);
+}
+
+init();
+</script>
+</body>
+</html>

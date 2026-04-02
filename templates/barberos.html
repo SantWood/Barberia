@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BarberApp — Barberos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/main.css"/>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand">✦ BarberApp</div>
+  <nav>
+    <a href="/" class="nav-item">⌂ Dashboard</a>
+    <a href="/citas" class="nav-item">◷ Citas</a>
+    <a href="/clientes" class="nav-item">◉ Clientes</a>
+    <a href="/barberos" class="nav-item active">✂ Barberos</a>
+  </nav>
+  <div class="sidebar-footer">v1.0 · 2025</div>
+</aside>
+<main class="main">
+  <header class="topbar">
+    <h1 class="page-title">Barberos</h1>
+    <button class="btn btn-primary" onclick="abrirModal()">+ Nuevo barbero</button>
+  </header>
+  <section class="content">
+    <div id="cards" class="grid-3"></div>
+  </section>
+</main>
+
+<div id="overlay" class="overlay hidden" onclick="cerrarModal()"></div>
+<div id="modal" class="modal hidden">
+  <div class="modal-header">
+    <h3>Nuevo barbero</h3>
+    <button class="modal-close" onclick="cerrarModal()">✕</button>
+  </div>
+  <div class="form-group"><label>Nombre *</label><input id="f-nombre" class="form-control" placeholder="Nombre completo"/></div>
+  <div class="form-group"><label>Teléfono</label><input id="f-tel" class="form-control" placeholder="Ej: 3001234567"/></div>
+  <div class="form-group">
+    <label>Especialidades</label>
+    <div id="esp-checks" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;"></div>
+  </div>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+    <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardar()">Guardar</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script>
+const ESPECIALIDADES = ["Corte clásico","Corte fade","Corte + barba","Afeitado clásico","Tratamiento capilar","Coloración","Diseño"];
+
+async function cargar() {
+  const data = await fetch("/api/barberos/").then(r=>r.json());
+  document.getElementById("cards").innerHTML = data.length===0
+    ? `<p style="color:#8a8274;grid-column:1/-1;">No hay barberos registrados aún.</p>`
+    : data.map(b=>`
+      <div class="card" style="text-align:center;">
+        <div style="font-size:40px;color:#c9a84c;margin-bottom:8px;">✂</div>
+        <div style="font-size:17px;font-weight:500;margin-bottom:4px;">${b.nombre}</div>
+        <div style="font-size:13px;color:#8a8274;margin-bottom:14px;">${b.telefono||"Sin teléfono"}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:16px;">
+          ${(b.especialidades||[]).map(e=>`<span style="background:#242118;border:1px solid #2e2b25;color:#c9a84c;padding:3px 10px;border-radius:20px;font-size:12px;">${e}</span>`).join("")}
+        </div>
+        <button class="btn btn-danger btn-sm" style="width:100%;" onclick="eliminar('${b._id}')">Desactivar</button>
+      </div>`).join("");
+}
+
+function abrirModal() {
+  document.getElementById("f-nombre").value = "";
+  document.getElementById("f-tel").value = "";
+  document.getElementById("esp-checks").innerHTML = ESPECIALIDADES.map(e=>`
+    <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:#e8e3d8;cursor:pointer;">
+      <input type="checkbox" value="${e}" style="accent-color:#c9a84c;"/> ${e}
+    </label>`).join("");
+  document.getElementById("overlay").classList.remove("hidden");
+  document.getElementById("modal").classList.remove("hidden");
+}
+
+function cerrarModal() {
+  document.getElementById("overlay").classList.add("hidden");
+  document.getElementById("modal").classList.add("hidden");
+}
+
+async function guardar() {
+  const nombre = document.getElementById("f-nombre").value.trim();
+  const telefono = document.getElementById("f-tel").value.trim();
+  if (!nombre) { toast("El nombre es obligatorio","error"); return; }
+  const especialidades = [...document.querySelectorAll("#esp-checks input:checked")].map(c=>c.value);
+  const res = await fetch("/api/barberos/", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({nombre, telefono, especialidades})
+  });
+  const data = await res.json();
+  if (!res.ok) { toast(data.error,"error"); return; }
+  toast("Barbero registrado","ok");
+  cerrarModal();
+  cargar();
+}
+
+async function eliminar(id) {
+  if (!confirm("¿Desactivar este barbero?")) return;
+  await fetch(`/api/barberos/${id}`, {method:"DELETE"});
+  toast("Barbero desactivado","ok");
+  cargar();
+}
+
+function toast(msg, tipo) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = `toast ${tipo==="error"?"toast-error":"toast-ok"}`;
+  setTimeout(()=>t.className="toast hidden", 3000);
+}
+
+cargar();
+</script>
+</body>
+</html>
