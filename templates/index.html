@@ -50,7 +50,19 @@ const BADGES = {
   completada: ["#1a1a1a","#888888"],
   cancelada:  ["#2c0f0e","#e07070"],
 };
+async function logout() {
+  await fetch("/auth/logout", {method:"POST"});
+  window.location.href = "/auth/login";
+}
+async function cargarUsuario() {
+  const res = await fetch("/auth/me");
+  if (!res.ok) { window.location.href = "/auth/login"; return; }
+  const u = await res.json();
+  document.getElementById("usuario-info").textContent = u.nombre + " · " + u.rol;
+  if (u.rol === "admin") document.getElementById("link-usuarios").style.display = "block";
+}
 async function init() {
+  await cargarUsuario();
   const hoy = new Date().toISOString().split("T")[0];
   document.getElementById("fecha-hoy").textContent = new Date().toLocaleDateString("es-CO",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
   const [citas, clientes, barberos] = await Promise.all([
@@ -84,20 +96,6 @@ async function init() {
       }).join("");
 }
 init();
-</script>
-<script>
-async function logout() {
-  await fetch("/auth/logout", {method:"POST"});
-  window.location.href = "/auth/login";
-}
-async function cargarUsuario() {
-  const res = await fetch("/auth/me");
-  if (!res.ok) { window.location.href = "/auth/login"; return; }
-  const u = await res.json();
-  document.getElementById("usuario-info").textContent = u.nombre + " · " + u.rol;
-  if (u.rol === "admin") document.getElementById("link-usuarios").style.display = "block";
-}
-cargarUsuario();
 </script>
 </body>
 </html>

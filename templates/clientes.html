@@ -10,9 +10,9 @@
 <aside class="sidebar">
   <div class="brand">✦ BarberApp</div>
   <nav>
-    <a href="/" class="nav-item active">⌂ Dashboard</a>
+    <a href="/" class="nav-item">⌂ Dashboard</a>
     <a href="/citas" class="nav-item">◷ Citas</a>
-    <a href="/clientes" class="nav-item">◉ Clientes</a>
+    <a href="/clientes" class="nav-item active">◉ Clientes</a>
     <a href="/barberos" class="nav-item">✂ Barberos</a>
     <a href="/usuarios" class="nav-item" id="link-usuarios" style="display:none;">👤 Usuarios</a>
   </nav>
@@ -44,7 +44,6 @@
   </section>
 </main>
 
-<!-- Modal -->
 <div id="overlay" class="overlay hidden" onclick="cerrarModal()"></div>
 <div id="modal" class="modal hidden">
   <div class="modal-header">
@@ -60,11 +59,20 @@
     <button class="btn btn-primary" onclick="guardar()">Guardar</button>
   </div>
 </div>
-
 <div id="toast" class="toast hidden"></div>
 <script>
 let editId = null;
-
+async function logout() {
+  await fetch("/auth/logout", {method:"POST"});
+  window.location.href = "/auth/login";
+}
+async function cargarUsuario() {
+  const res = await fetch("/auth/me");
+  if (!res.ok) { window.location.href = "/auth/login"; return; }
+  const u = await res.json();
+  document.getElementById("usuario-info").textContent = u.nombre + " · " + u.rol;
+  if (u.rol === "admin") document.getElementById("link-usuarios").style.display = "block";
+}
 async function cargar() {
   const q = document.getElementById("buscar").value;
   const data = await fetch(`/api/clientes/?q=${encodeURIComponent(q)}`).then(r=>r.json());
@@ -81,7 +89,6 @@ async function cargar() {
         </td>
       </tr>`).join("");
 }
-
 function abrirModal(titulo="Nuevo cliente") {
   editId = null;
   document.getElementById("modal-titulo").textContent = titulo;
@@ -89,7 +96,6 @@ function abrirModal(titulo="Nuevo cliente") {
   document.getElementById("overlay").classList.remove("hidden");
   document.getElementById("modal").classList.remove("hidden");
 }
-
 function editar(c) {
   editId = c._id;
   document.getElementById("modal-titulo").textContent = "Editar cliente";
@@ -100,12 +106,10 @@ function editar(c) {
   document.getElementById("overlay").classList.remove("hidden");
   document.getElementById("modal").classList.remove("hidden");
 }
-
 function cerrarModal() {
   document.getElementById("overlay").classList.add("hidden");
   document.getElementById("modal").classList.add("hidden");
 }
-
 async function guardar() {
   const body = {
     nombre:   document.getElementById("f-nombre").value.trim(),
@@ -123,36 +127,20 @@ async function guardar() {
   cerrarModal();
   cargar();
 }
-
 async function eliminar(id) {
   if (!confirm("¿Eliminar este cliente?")) return;
   await fetch(`/api/clientes/${id}`, {method:"DELETE"});
   toast("Cliente eliminado","ok");
   cargar();
 }
-
 function toast(msg, tipo) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.className = `toast ${tipo==="error"?"toast-error":"toast-ok"}`;
   setTimeout(()=>t.className="toast hidden", 3000);
 }
-
-cargar();
-</script>
-<script>
-async function logout() {
-  await fetch("/auth/logout", {method:"POST"});
-  window.location.href = "/auth/login";
-}
-async function cargarUsuario() {
-  const res = await fetch("/auth/me");
-  if (!res.ok) { window.location.href = "/auth/login"; return; }
-  const u = await res.json();
-  document.getElementById("usuario-info").textContent = u.nombre + " · " + u.rol;
-  if (u.rol === "admin") document.getElementById("link-usuarios").style.display = "block";
-}
 cargarUsuario();
+cargar();
 </script>
 </body>
 </html>
