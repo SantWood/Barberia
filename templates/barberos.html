@@ -10,11 +10,16 @@
 <aside class="sidebar">
   <div class="brand">✦ BarberApp</div>
   <nav>
-    <a href="/" class="nav-item">⌂ Dashboard</a>
+    <a href="/" class="nav-item active">⌂ Dashboard</a>
     <a href="/citas" class="nav-item">◷ Citas</a>
     <a href="/clientes" class="nav-item">◉ Clientes</a>
-    <a href="/barberos" class="nav-item active">✂ Barberos</a>
+    <a href="/barberos" class="nav-item">✂ Barberos</a>
+    <a href="/usuarios" class="nav-item" id="link-usuarios" style="display:none;">👤 Usuarios</a>
   </nav>
+  <div style="margin-top:auto;padding-bottom:12px;">
+    <div id="usuario-info" style="font-size:13px;color:#8a8274;padding:8px 12px;margin-bottom:8px;"></div>
+    <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="logout()">Cerrar sesión</button>
+  </div>
   <div class="sidebar-footer">v1.0 · 2025</div>
 </aside>
 <main class="main">
@@ -113,6 +118,20 @@ function toast(msg, tipo) {
 }
 
 cargar();
+</script>
+<script>
+async function logout() {
+  await fetch("/auth/logout", {method:"POST"});
+  window.location.href = "/auth/login";
+}
+async function cargarUsuario() {
+  const res = await fetch("/auth/me");
+  if (!res.ok) { window.location.href = "/auth/login"; return; }
+  const u = await res.json();
+  document.getElementById("usuario-info").textContent = u.nombre + " · " + u.rol;
+  if (u.rol === "admin") document.getElementById("link-usuarios").style.display = "block";
+}
+cargarUsuario();
 </script>
 </body>
 </html>
