@@ -1,9 +1,13 @@
-from flask import Blueprint, jsonify
-from utils import get_db
+from flask import Blueprint, jsonify, render_template
+from utils.db import get_db
 
-reportes_bp = Blueprint("reportes", __name__, url_prefix="/api/reportes")
+reportes_bp = Blueprint("reportes", __name__)
 
-@reportes_bp.route("/resumen")
+@reportes_bp.route("/reportes")
+def ver_reportes():
+    return render_template("reportes.html")
+
+@reportes_bp.route("/api/reportes/resumen")
 def resumen():
     db = get_db()
 
@@ -12,18 +16,20 @@ def resumen():
         {"$group": {"_id": "$estado", "total": {"$sum": 1}}}
     ]))
 
-    # Citas por servicio
-    por_servicio = list(db.citas.aggregate([
-        {"$group": {"_id": "$servicio", "total": {"$sum": 1}}},
+    # Citas por servicio con ingresos
+    por_servicio_ingresos = list(db.citas.aggregate([
+        {"$group": {
+            "_id": "$servicio",
+            "total": {"$sum": 1},
+            "ingresos": {"$sum": "$precio"}
+        }},
         {"$sort": {"total": -1}},
         {"$limit": 6}
     ]))
 
-    # Citas por barbero
+    # Citas por barbero — usa nombre directo
     por_barbero = list(db.citas.aggregate([
-        {"$lookup": {"from": "barberos", "localField": "barbero_id", "foreignField": "_id", "as": "barbero"}},
-        {"$unwind": {"path": "$barbero", "preserveNullAndEmptyArrays": True}},
-        {"$group": {"_id": "$barbero.nombre", "total": {"$sum": 1}}},
+        {"$group": {"_id": "$barbero", "total": {"$sum": 1}}},
         {"$sort": {"total": -1}}
     ]))
 
@@ -34,38 +40,45 @@ def resumen():
         {"$limit": 14}
     ]))
 
-    # Ingresos por servicio (usando precio del servicio)
-    PRECIOS = {
-        "Corte clásico": 20000,
-        "Corte + barba": 35000,
-        "Afeitado clásico": 18000,
-        "Corte fade": 28000,
-        "Tratamiento capilar": 45000,
-    }
-    ingresos_data = []
-    for s in por_servicio:
-        nombre = s["_id"] if isinstance(s["_id"], str) else (s["_id"].get("nombre") if s["_id"] else "Desconocido")
-        precio = PRECIOS.get(nombre, 0)
-        ingresos_data.append({"servicio": nombre, "total": s["total"], "ingresos": s["total"] * precio})
-
     # Totales
     total_citas    = db.citas.count_documents({})
-    total_clientes = db.clientes.count_documents({"activo": True})
+    total_clientes = db.clientes.count_documents({})
     total_barberos = db.barberos.count_documents({"activo": True})
-    total_ingresos = sum(i["ingresos"] for i in ingresos_data)
 
-    def clean(lst, key="_id"):
-        return [{"label": (str(d[key]) if d[key] else "Sin nombre"), "total": d["total"]} for d in lst]
+    ingresos_result = list(db.citas.aggregate([
+        {"$match": {"estado": "completada"}},
+        {"$group": {"_id": None, "total": {"$sum": "$precio"}}}
+    ]))
+    total_ingresos = ingresos_result[0]["total"] if ingresos_result else 0
+
+    def clean(lst):
+        return [
+            {
+                "label": str(d["_id"]) if d["_id"] else "Sin nombre",
+                "total": d["total"]
+            }
+            for d in lst
+        ]
+
+    def clean_servicios(lst):
+        return [
+            {
+                "label": str(d["_id"]) if d["_id"] else "Sin nombre",
+                "total": d["total"],
+                "ingresos": d.get("ingresos", 0)
+            }
+            for d in lst
+        ]
 
     return jsonify({
         "totales": {
-            "citas": total_citas,
+            "citas":    total_citas,
             "clientes": total_clientes,
             "barberos": total_barberos,
             "ingresos": total_ingresos,
         },
         "por_estado":   clean(por_estado),
-        "por_servicio": [{"label": d["servicio"], "total": d["total"], "ingresos": d["ingresos"]} for d in ingresos_data],
+        "por_servicio": clean_servicios(por_servicio_ingresos),
         "por_barbero":  clean(por_barbero),
         "por_dia":      clean(por_dia),
     }), 200

@@ -1,9 +1,9 @@
 import os
-from flask import Flask, render_template, session, redirect, url_for
+from flask import Flask, render_template, session, redirect
 from flask_cors import CORS
 from config import Config
 from utils.db import close_db
-from routes import clientes_bp, barberos_bp, citas_bp, auth_bp
+from routes import clientes_bp, barberos_bp, citas_bp, auth_bp, reportes_bp
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -13,6 +13,7 @@ app.register_blueprint(clientes_bp)
 app.register_blueprint(barberos_bp)
 app.register_blueprint(citas_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(reportes_bp)
 app.teardown_appcontext(close_db)
 
 def login_requerido(f):
@@ -43,6 +44,11 @@ def vista_clientes():
 @login_requerido
 def vista_barberos():
     return render_template("barberos.html")
+
+@app.route("/reportes")
+@login_requerido
+def vista_reportes():
+    return render_template("reportes.html")
 
 @app.route("/usuarios")
 @login_requerido
